@@ -3,5 +3,6 @@ NCERT_Dataset.csv
 gruyere/
 model_19999_full.pt
 log/
-Gruyere-1.1-HF/
+Gruyere-1.1/
 conversion_scripts/tiktoken
+eval/results

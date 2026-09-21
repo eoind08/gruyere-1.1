@@ -1,0 +1,17 @@
+model: hf
+
+model_args:
+  pretrained: Erbium08/Gruyere-1.1
+  dtype: float32
+  trust_remote_code: true
+
+tasks:
+  - hellaswag
+
+
+device: cuda:0
+batch_size: auto
+num_fewshot: 0
+
+output_path: ./eval/results/
+log_samples: true
