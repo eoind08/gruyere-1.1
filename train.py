@@ -6,8 +6,20 @@ import tiktoken
 import time
 import numpy as np
 import math
-from model import GPT
-from model import GPTConfig
+import __main__
+
+from model import (
+    GPT,
+    GPTConfig,
+    Block,
+    CausalSelfAttention,
+    MLP,
+)
+__main__.GPT = GPT
+__main__.GPTConfig = GPTConfig
+__main__.Block = Block
+__main__.CausalSelfAttention = CausalSelfAttention
+__main__.MLP = MLP
 
 def load_tokens(filename):
     print(f"\nLOADING: {filename}")
@@ -155,7 +167,7 @@ for step in range(max_steps):
     t0 = time.time()
     last_step = (step == max_steps - 1)
 
-    if step % 1000 == 0 or last_step:
+    if step % 305 == 0 or last_step:
         model.eval()
         val_loader.reset()
         with torch.no_grad():
@@ -190,30 +202,41 @@ for step in range(max_steps):
 
     if ((step > 0 and step % 305 == 0) or last_step) and not use_compile:
         model.eval()
-        num_return_sequences = 4
-        max_length = 32
-        tokens = enc.encode("Hello, I'm a language model,")
-        tokens = torch.tensor(tokens, dtype=torch.long)
-        tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
-        xgen = tokens.to(device)
+        prompts = [
+            "The capital city of France is",
+            "Photosynthesis is the process by which",
+            "Newton's second law states that",
+            "The human digestive system begins with",
+            "The Mughal Empire was established by",
+            "The main function of the mitochondria is",
+        ]
+        num_return_sequences = 2
+        max_new_tokens = 32
         sample_rng = torch.Generator(device=device)
         sample_rng.manual_seed(42)
 
-        while xgen.size(1) < max_length:
-            with torch.no_grad():
-                with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                    logits, loss = model(xgen)
-                logits = logits[:, -1, :]
-                probs = F.softmax(logits, dim=-1)
-                topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
-                ix = torch.multinomial(topk_probs, 1, generator=sample_rng)
-                xcol = torch.gather(topk_indices, -1, ix)
-                xgen = torch.cat((xgen, xcol), dim=1)
+        for prompt in prompts:
+            tokens = enc.encode(prompt)
+            tokens = torch.tensor(tokens, dtype=torch.long, device=device)
+            tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
+            xgen = tokens
 
-        for i in range(num_return_sequences):
-            tokens = xgen[i, :max_length].tolist()
-            decoded = enc.decode(tokens)
-            print(f"sample {i}: {decoded}")
+            while xgen.size(1) < len(tokens[0]) + max_new_tokens:
+                with torch.no_grad():
+                    with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                        logits, loss = model(xgen)
+                    logits = logits[:, -1, :]
+                    probs = F.softmax(logits, dim=-1)
+                    topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
+                    ix = torch.multinomial(topk_probs, 1, generator=sample_rng)
+                    xcol = torch.gather(topk_indices, -1, ix)
+                    xgen = torch.cat((xgen, xcol), dim=1)
+
+            print(f"\nprompt: {prompt}")
+            for i in range(num_return_sequences):
+                tokens = xgen[i].tolist()
+                decoded = enc.decode(tokens)
+                print(f"sample {i}: {decoded}")
 
     model.train()
     muon_optimizer.zero_grad()
